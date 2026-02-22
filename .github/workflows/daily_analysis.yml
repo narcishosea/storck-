@@ -1,6 +1,6 @@
 name: 每日股票分析
 
-于:
+on:
   # 定时触发 - 每天北京时间 08:00 (UTC 00:00)
   schedule:
     - cron: '0 0 * * 1-5'     # 周一到周五，UTC 00:00 = 北京时间 08:00
@@ -11,8 +11,8 @@ name: 每日股票分析
       mode:
         description: '运行模式'
         required: true
-        默认: 'full'
-        输入: choice
+        default: 'full'
+        type: choice
         options:
           - full          # 完整分析（股票+大盘）
           - market-only   # 仅大盘复盘
@@ -26,8 +26,8 @@ concurrency:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    # 添加超时限制，防止任务卡死
-    timeout-minutes: 50
+    # 添加超时限制，防止 20 只股票跑不完
+    timeout-minutes: 60
     
     steps:
       - name: 随机延迟（避免固定时间访问）
@@ -56,13 +56,11 @@ jobs:
           # ==========================================
           # AI 配置
           # ==========================================
-          # Gemini AI（主选）
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || secrets.GEMINI_MODEL || 'gemini-3-flash-preview' }}
           GEMINI_MODEL_FALLBACK: ${{ vars.GEMINI_MODEL_FALLBACK || secrets.GEMINI_MODEL_FALLBACK || 'gemini-2.5-flash' }}
           GEMINI_REQUEST_DELAY: '3.0'
           
-          # OpenAI 兼容 API（备选）
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || secrets.OPENAI_BASE_URL }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || secrets.OPENAI_MODEL }}
@@ -80,84 +78,48 @@ jobs:
           SERPAPI_API_KEYS: ${{ secrets.SERPAPI_API_KEYS }}
           
           # ==========================================
-          # 通知渠道（可同时配置多个，全部推送）
+          # 通知渠道（全部保留）
           # ==========================================
-          
-          # 方式一：企业微信 Webhook
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
           WECHAT_MSG_TYPE: ${{ vars.WECHAT_MSG_TYPE || secrets.WECHAT_MSG_TYPE || 'markdown' }}
-          
-          # 方式二：飞书 Webhook
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
-          
-          # 方式三：Telegram
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MESSAGE_THREAD_ID: ${{ secrets.TELEGRAM_MESSAGE_THREAD_ID }}
-          
-          # 方式四：邮件
           EMAIL_SENDER: ${{ vars.EMAIL_SENDER || secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_RECEIVERS: ${{ vars.EMAIL_RECEIVERS || secrets.EMAIL_RECEIVERS }}
           EMAIL_SENDER_NAME: ${{ vars.EMAIL_SENDER_NAME || secrets.EMAIL_SENDER_NAME || 'daily_stock_analysis股票分析助手' }}
-          
-          # 方式五：Pushover
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
           PUSHOVER_API_TOKEN: ${{ secrets.PUSHOVER_API_TOKEN }}
-          
-          # 方式六：PushPlus ⬅️ 新增！
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-          
-          # 方式七：自定义 Webhook（钉钉、Bark、自建服务等）
           CUSTOM_WEBHOOK_URLS: ${{ secrets.CUSTOM_WEBHOOK_URLS }}
           CUSTOM_WEBHOOK_BEARER_TOKEN: ${{ secrets.CUSTOM_WEBHOOK_BEARER_TOKEN }}
-          
-          # 方式八：Discord
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_MAIN_CHANNEL_ID: ${{ secrets.DISCORD_MAIN_CHANNEL_ID }}
-          
-          # 方式九：飞书云文档
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_FOLDER_TOKEN: ${{ secrets.FEISHU_FOLDER_TOKEN }}
-
-          # 方式十：AstrBot
           ASTRBOT_URL: ${{ secrets.ASTRBOT_URL }}
           ASTRBOT_TOKEN: ${{ secrets.ASTRBOT_TOKEN }}
-
-          # 方式十一：Server酱3
           SERVERCHAN3_SENDKEY: ${{ secrets.SERVERCHAN3_SENDKEY }}
 
           # ==========================================
-          # 自选股配置
+          # 自选股与运行配置
           # ==========================================
           STOCK_LIST: ${{ vars.STOCK_LIST || secrets.STOCK_LIST || '600519' }}
-          
-          # ==========================================
-          # 运行配置 ⬅️ 新增！
-          # ==========================================
           REPORT_TYPE: ${{ vars.REPORT_TYPE || secrets.REPORT_TYPE || 'simple' }}
           SINGLE_STOCK_NOTIFY: ${{ vars.SINGLE_STOCK_NOTIFY || secrets.SINGLE_STOCK_NOTIFY || 'false' }}
           MARKET_REVIEW_ENABLED: ${{ vars.MARKET_REVIEW_ENABLED || secrets.MARKET_REVIEW_ENABLED || 'true' }}
           ANALYSIS_DELAY: ${{ vars.ANALYSIS_DELAY || secrets.ANALYSIS_DELAY || '0' }}
-          
-          # ==========================================
-          # 系统配置
-          # ==========================================
           LOG_LEVEL: INFO
           MAX_WORKERS: ${{ vars.MAX_WORKERS || secrets.MAX_WORKERS || '1' }}
-          # GitHub Actions 环境建议关闭不稳定的数据源
           ENABLE_CHIP_DISTRIBUTION: 'false'
-          # 实时行情数据源优先级（腾讯有量比且稳定，推荐首选）
-          # 可选值: tencent, akshare_sina, efinance, akshare_em, tushare
-          # 如果有 Tushare Pro 高积分账号，可将 tushare 放在首位
           REALTIME_SOURCE_PRIORITY: ${{ vars.REALTIME_SOURCE_PRIORITY || 'tencent,akshare_sina,efinance,akshare_em' }}
           
         run: |
-          # 判断运行模式
           MODE="${{ github.event.inputs.mode || 'full' }}"
-          
           echo "=========================================="
           echo "🚀 A股自选股智能分析系统"
           echo "=========================================="
